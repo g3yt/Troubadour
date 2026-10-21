@@ -1,0 +1,7 @@
+/Users/camdawgbro/Troubadour/android/src/main/cpp/build/CMakeFiles/warp.dir
+/Users/camdawgbro/Troubadour/android/src/main/cpp/build/CMakeFiles/edit_cache.dir
+/Users/camdawgbro/Troubadour/android/src/main/cpp/build/CMakeFiles/rebuild_cache.dir
+/Users/camdawgbro/Troubadour/android/src/main/cpp/build/CMakeFiles/list_install_components.dir
+/Users/camdawgbro/Troubadour/android/src/main/cpp/build/CMakeFiles/install.dir
+/Users/camdawgbro/Troubadour/android/src/main/cpp/build/CMakeFiles/install/local.dir
+/Users/camdawgbro/Troubadour/android/src/main/cpp/build/CMakeFiles/install/strip.dir

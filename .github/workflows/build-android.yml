@@ -1,0 +1,127 @@
+name: Build Android WARP Bypass
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android ARMv6 (API 9)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Android NDK r22b (has legacy platforms/ headers)
+        uses: android-actions/setup-android@v3
+        with:
+          ndk-version: r22b
+          api-level: 9
+
+      - name: Cache NDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/android-ndk-r22b
+            ~/.android
+          key: ndk-r22b-${{ runner.os }}
+          restore-keys: |
+            ndk-r22b-
+
+      - name: Configure CMake
+        working-directory: android/src/main/cpp
+        run: |
+          cmake -B build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=armeabi \
+            -DANDROID_PLATFORM=android-9 \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        working-directory: android/src/main/cpp
+        run: |
+          cmake --build build -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libwarp-android-armv6
+          path: android/src/main/cpp/build/libwarp.so
+          retention-days: 7
+
+  build-android-v7a:
+    name: Build Android ARMv7 (API 21+)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Android NDK (latest)
+        uses: android-actions/setup-android@v3
+        with:
+          ndk-version: r26d
+          api-level: 21
+
+      - name: Configure CMake
+        working-directory: android/src/main/cpp
+        run: |
+          cmake -B build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=armeabi-v7a \
+            -DANDROID_PLATFORM=android-21 \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        working-directory: android/src/main/cpp
+        run: |
+          cmake --build build -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libwarp-android-armv7
+          path: android/src/main/cpp/build/libwarp.so
+          retention-days: 7
+
+  build-android-arm64:
+    name: Build Android ARM64 (API 21+)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Android NDK (latest)
+        uses: android-actions/setup-android@v3
+        with:
+          ndk-version: r26d
+          api-level: 21
+
+      - name: Configure CMake
+        working-directory: android/src/main/cpp
+        run: |
+          cmake -B build \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-21 \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        working-directory: android/src/main/cpp
+        run: |
+          cmake --build build -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libwarp-android-arm64
+          path: android/src/main/cpp/build/libwarp.so
+          retention-days: 7
