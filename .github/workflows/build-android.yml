@@ -108,6 +108,11 @@ jobs:
           echo "Checking fallback NDK platforms..."
           ls -la $NDK_DIR/platforms/ 2>/dev/null | head -30
 
+      - name: Clean build directory (ARMv6)
+        working-directory: android/src/main/cpp
+        run: |
+          rm -rf build
+
       - name: Configure CMake (ARMv6 / API 9)
         working-directory: android/src/main/cpp
         env:
@@ -171,6 +176,11 @@ jobs:
           echo "ANDROID_NDK_ROOT=${NDK_DIR}" >> $GITHUB_ENV
           echo "${NDK_DIR}" >> $GITHUB_PATH
 
+      - name: Clean build directory (ARMv7)
+        working-directory: android/src/main/cpp
+        run: |
+          rm -rf build
+
       - name: Configure CMake
         working-directory: android/src/main/cpp
         env:
@@ -230,6 +240,11 @@ jobs:
           echo "ANDROID_NDK_HOME=${NDK_DIR}" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=${NDK_DIR}" >> $GITHUB_ENV
           echo "${NDK_DIR}" >> $GITHUB_PATH
+
+      - name: Clean build directory (ARM64)
+        working-directory: android/src/main/cpp
+        run: |
+          rm -rf build
 
       - name: Configure CMake
         working-directory: android/src/main/cpp
