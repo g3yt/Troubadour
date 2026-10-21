@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android:
+  build-android-armv6:
     name: Build Android ARMv6 (API 9)
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -17,30 +17,110 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Android NDK r22b (has legacy platforms/ headers)
-        uses: android-actions/setup-android@v3
-        with:
-          ndk-version: r22b
-          api-level: 9
-
-      - name: Cache NDK
+      - name: Cache NDK r20b
         uses: actions/cache@v4
         with:
-          path: |
-            ~/android-ndk-r22b
-            ~/.android
-          key: ndk-r22b-${{ runner.os }}
+          path: ~/android-ndk-r20b
+          key: ndk-r20b-${{ runner.os }}
           restore-keys: |
-            ndk-r22b-
+            ndk-r20b-
 
-      - name: Configure CMake
-        working-directory: android/src/main/cpp
+      - name: Download and setup NDK r20b (last with armeabi support)
         run: |
+          NDK_VERSION=r20b
+          NDK_URL="https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux-x86_64.zip"
+          NDK_DIR="${HOME}/android-ndk-${NDK_VERSION}"
+
+          if [ ! -d "${NDK_DIR}" ]; then
+            echo "Downloading NDK ${NDK_VERSION}..."
+            curl -L -o /tmp/ndk.zip "${NDK_URL}"
+            echo "Extracting NDK..."
+            unzip -q /tmp/ndk.zip -d "${HOME}"
+            # Rename to expected directory name
+            mv "${HOME}/android-ndk-${NDK_VERSION}" "${NDK_DIR}" 2>/dev/null || true
+          else
+            echo "NDK ${NDK_VERSION} already cached"
+          fi
+
+          echo "ANDROID_NDK_HOME=${NDK_DIR}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=${NDK_DIR}" >> $GITHUB_ENV
+          echo "${NDK_DIR}" >> $GITHUB_PATH
+
+      - name: Verify NDK and check armeabi/API 9 support
+        run: |
+          echo "NDK directory: $ANDROID_NDK_HOME"
+          ls -la $ANDROID_NDK_HOME/
+          echo "Checking toolchains..."
+          ls -la $ANDROID_NDK_HOME/toolchains/ 2>/dev/null || echo "No toolchains dir"
+          echo "Checking platforms..."
+          ls -la $ANDROID_NDK_HOME/platforms/ 2>/dev/null | head -30
+
+          # Check if android-9 platform exists
+          if [ -d "$ANDROID_NDK_HOME/platforms/android-9" ]; then
+            echo "✓ android-9 platform found in NDK r20b"
+            echo "HAS_API_9=true" >> $GITHUB_ENV
+          else
+            echo "✗ android-9 platform NOT found in NDK r20b"
+            echo "HAS_API_9=false" >> $GITHUB_ENV
+          fi
+
+          # Check if armeabi toolchain exists
+          if ls $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/arm-linux-androideabi* 2>/dev/null; then
+            echo "✓ armeabi toolchain found"
+            echo "HAS_ARMEABI=true" >> $GITHUB_ENV
+          else
+            echo "✗ armeabi toolchain NOT found"
+            echo "HAS_ARMEABI=false" >> $GITHUB_ENV
+          fi
+
+      - name: Cache NDK r17c (fallback)
+        uses: actions/cache@v4
+        if: env.HAS_API_9 == 'false' || env.HAS_ARMEABI == 'false'
+        with:
+          path: ~/android-ndk-r17c
+          key: ndk-r17c-${{ runner.os }}
+          restore-keys: |
+            ndk-r17c-
+
+      - name: Fallback to NDK r17c if API 9 or armeabi missing
+        if: env.HAS_API_9 == 'false' || env.HAS_ARMEABI == 'false'
+        run: |
+          echo "Falling back to NDK r17c for API 9 / armeabi support..."
+          NDK_VERSION=r17c
+          NDK_URL="https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux-x86_64.zip"
+          NDK_DIR="${HOME}/android-ndk-${NDK_VERSION}"
+
+          if [ ! -d "${NDK_DIR}" ]; then
+            echo "Downloading NDK ${NDK_VERSION}..."
+            curl -L -o /tmp/ndk-r17c.zip "${NDK_URL}"
+            echo "Extracting NDK..."
+            unzip -q /tmp/ndk-r17c.zip -d "${HOME}"
+            mv "${HOME}/android-ndk-${NDK_VERSION}" "${NDK_DIR}" 2>/dev/null || true
+          else
+            echo "NDK ${NDK_VERSION} already cached"
+          fi
+
+          echo "ANDROID_NDK_HOME=${NDK_DIR}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=${NDK_DIR}" >> $GITHUB_ENV
+          echo "${NDK_DIR}" >> $GITHUB_PATH
+
+          # Verify the fallback NDK
+          echo "Checking fallback NDK platforms..."
+          ls -la $NDK_DIR/platforms/ 2>/dev/null | head -30
+
+      - name: Configure CMake (ARMv6 / API 9)
+        working-directory: android/src/main/cpp
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+        run: |
+          echo "Using NDK: $ANDROID_NDK_HOME"
           cmake -B build \
             -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=armeabi \
             -DANDROID_PLATFORM=android-9 \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DANDROID_TOOLCHAIN=clang \
+            -DANDROID_STL=c++_static
 
       - name: Build
         working-directory: android/src/main/cpp
@@ -63,14 +143,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Android NDK (latest)
-        uses: android-actions/setup-android@v3
+      - name: Cache NDK r26d
+        uses: actions/cache@v4
         with:
-          ndk-version: r26d
-          api-level: 21
+          path: ~/android-ndk-r26d
+          key: ndk-r26d-${{ runner.os }}
+          restore-keys: |
+            ndk-r26d-
+
+      - name: Download and setup NDK r26d
+        run: |
+          NDK_VERSION=r26d
+          NDK_URL="https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux-x86_64.zip"
+          NDK_DIR="${HOME}/android-ndk-${NDK_VERSION}"
+
+          if [ ! -d "${NDK_DIR}" ]; then
+            echo "Downloading NDK ${NDK_VERSION}..."
+            curl -L -o /tmp/ndk.zip "${NDK_URL}"
+            echo "Extracting NDK..."
+            unzip -q /tmp/ndk.zip -d "${HOME}"
+            mv "${HOME}/android-ndk-${NDK_VERSION}" "${NDK_DIR}" 2>/dev/null || true
+          else
+            echo "NDK ${NDK_VERSION} already cached"
+          fi
+
+          echo "ANDROID_NDK_HOME=${NDK_DIR}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=${NDK_DIR}" >> $GITHUB_ENV
+          echo "${NDK_DIR}" >> $GITHUB_PATH
 
       - name: Configure CMake
         working-directory: android/src/main/cpp
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: |
           cmake -B build \
             -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
@@ -99,14 +203,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Android NDK (latest)
-        uses: android-actions/setup-android@v3
+      - name: Cache NDK r26d
+        uses: actions/cache@v4
         with:
-          ndk-version: r26d
-          api-level: 21
+          path: ~/android-ndk-r26d
+          key: ndk-r26d-${{ runner.os }}
+          restore-keys: |
+            ndk-r26d-
+
+      - name: Download and setup NDK r26d
+        run: |
+          NDK_VERSION=r26d
+          NDK_URL="https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux-x86_64.zip"
+          NDK_DIR="${HOME}/android-ndk-${NDK_VERSION}"
+
+          if [ ! -d "${NDK_DIR}" ]; then
+            echo "Downloading NDK ${NDK_VERSION}..."
+            curl -L -o /tmp/ndk.zip "${NDK_URL}"
+            echo "Extracting NDK..."
+            unzip -q /tmp/ndk.zip -d "${HOME}"
+            mv "${HOME}/android-ndk-${NDK_VERSION}" "${NDK_DIR}" 2>/dev/null || true
+          else
+            echo "NDK ${NDK_VERSION} already cached"
+          fi
+
+          echo "ANDROID_NDK_HOME=${NDK_DIR}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=${NDK_DIR}" >> $GITHUB_ENV
+          echo "${NDK_DIR}" >> $GITHUB_PATH
 
       - name: Configure CMake
         working-directory: android/src/main/cpp
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: |
           cmake -B build \
             -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
